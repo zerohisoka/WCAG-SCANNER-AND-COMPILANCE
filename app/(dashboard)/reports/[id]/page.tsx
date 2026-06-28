@@ -17,12 +17,14 @@ import {
 } from 'lucide-react';
 import type { ScanResult } from '@/types/scan';
 import { formatDate } from '@/lib/utils';
+import { useUser } from '@/hooks/useUser';
 
 type ImpactFilter = 'All' | 'critical' | 'serious' | 'moderate' | 'minor';
 
 export default function ReportDetailPage() {
   const params = useParams();
   const id = params?.id as string;
+  const { user } = useUser();
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,15 +33,33 @@ export default function ReportDetailPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (id) fetchScan();
-  }, [id]);
+    if (id && user) fetchScan();
+  }, [id, user]);
 
   const fetchScan = async () => {
     try {
-      const res = await fetch(`/api/scan/${id}`);
-      if (!res.ok) throw new Error('Scan not found');
-      const data = await res.json();
-      setScan(data);
+      // Fetch the report first
+      const reportRes = await fetch(`/api/reports`);
+      if (!reportRes.ok) throw new Error('Failed to fetch reports');
+      const reportsData = await reportRes.json();
+      const reports = reportsData.reports || [];
+      const report = reports.find((r: any) => r.id === id);
+      if (!report) throw new Error('Report not found');
+
+      // Fetch scan data
+      const scanRes = await fetch(`/api/scan/${id}`);
+      if (!scanRes.ok) throw new Error('Scan data not found');
+      const scanData = await scanRes.json();
+
+      // Fetch violations separately
+      const violationsRes = await fetch(`/api/reports/${id}/violations`);
+      let violations = [];
+      if (violationsRes.ok) {
+        const violationsData = await violationsRes.json();
+        violations = violationsData.violations || [];
+      }
+
+      setScan({ ...scanData, violations });
     } catch (err: any) {
       setError(err.message);
     } finally {

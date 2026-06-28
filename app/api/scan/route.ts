@@ -105,6 +105,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create scan record' }, { status: 500 });
     }
 
+    // Insert into reports table immediately
+    if (userId) {
+      const { data: report, error: reportError } = await db
+        .from('reports')
+        .insert({
+          scan_id: scanId,
+          user_id: userId,
+          name: `Scan of ${url} - ${new Date().toLocaleDateString()}`,
+          is_public: false,
+        })
+        .select()
+        .single();
+
+      if (reportError) {
+        console.error('Failed to create report:', reportError);
+      } else {
+        console.log('Report created:', report?.id);
+      }
+    }
+
     // Increment scan count for authenticated users
     if (userId) {
       await db

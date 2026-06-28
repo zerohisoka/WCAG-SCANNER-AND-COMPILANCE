@@ -4,14 +4,16 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileText, AlertTriangle } from 'lucide-react';
 import ReportCard from '@/components/reports/ReportCard';
+import { useUser } from '@/hooks/useUser';
 
 export default function ReportsPage() {
+  const { user } = useUser();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchReports();
-  }, []);
+    if (user) fetchReports();
+  }, [user]);
 
   const fetchReports = async () => {
     try {
@@ -19,6 +21,7 @@ export default function ReportsPage() {
       if (res.ok) {
         const data = await res.json();
         setReports(data.reports || []);
+        console.log('Reports fetched:', data.reports?.length, data.error);
       }
     } catch (err) {
       console.error('Failed to fetch reports:', err);
