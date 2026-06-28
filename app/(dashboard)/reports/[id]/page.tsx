@@ -1,406 +1,226 @@
-'use client';
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { redirect, notFound } from 'next/navigation'
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import {
-  ArrowLeft,
-  Loader2,
-  FileDown,
-  Check,
-  ExternalLink,
-  AlertTriangle,
-  ChevronDown,
-  FileText,
-  Calendar,
-  Share,
-} from 'lucide-react';
-import type { ScanResult } from '@/types/scan';
-import { formatDate } from '@/lib/utils';
-import { useUser } from '@/hooks/useUser';
-
-type ImpactFilter = 'All' | 'critical' | 'serious' | 'moderate' | 'minor';
-
-export default function ReportDetailPage() {
-  const params = useParams();
-  const id = params?.id as string;
-  const { user } = useUser();
-  const [scan, setScan] = useState<ScanResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [impactFilter, setImpactFilter] = useState<ImpactFilter>('All');
-  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (id && user) fetchScan();
-  }, [id, user]);
-
-  const fetchScan = async () => {
-    try {
-      // Fetch the report first
-      const reportRes = await fetch(`/api/reports`);
-      if (!reportRes.ok) throw new Error('Failed to fetch reports');
-      const reportsData = await reportRes.json();
-      const reports = reportsData.reports || [];
-      const report = reports.find((r: any) => r.id === id);
-      if (!report) throw new Error('Report not found');
-
-      // Fetch scan data
-      const scanRes = await fetch(`/api/scan/${id}`);
-      if (!scanRes.ok) throw new Error('Scan data not found');
-      const scanData = await scanRes.json();
-
-      // Fetch violations separately
-      const violationsRes = await fetch(`/api/reports/${id}/violations`);
-      let violations = [];
-      if (violationsRes.ok) {
-        const violationsData = await violationsRes.json();
-        violations = violationsData.violations || [];
-      }
-
-      setScan({ ...scanData, violations });
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+export default async function ReportDetailPage({
+  params
+}: {
+  params: { id: string }
+}) {
+  const cookieStore = cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          )
+        },
+      },
     }
-  };
+  )
 
-  const toggleExpand = (idx: number) => {
-    setExpandedCards((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback
-    }
-  };
+  // Fetch report
+  const { data: report, error } = await supabase
+    .from('reports')
+    .select(`*, scans(*)`)
+    .eq('id', params.id)
+    .eq('user_id', user.id)
+    .single()
 
-  const filteredViolations = scan?.violations?.filter(
-    (v) => impactFilter === 'All' || v.impact === impactFilter
-  ) || [];
+  if (error || !report) notFound()
 
-  const impactBg = (impact: string) => {
-    switch (impact) {
-      case 'critical':
-        return 'bg-severity-critical/10 text-severity-critical border-severity-critical/30';
-      case 'serious':
-        return 'bg-severity-serious/10 text-severity-serious border-severity-serious/30';
-      case 'moderate':
-        return 'bg-severity-moderate/10 text-severity-moderate border-severity-moderate/30';
-      default:
-        return 'bg-severity-minor/10 text-severity-minor border-severity-minor/30';
-    }
-  };
+  const scan = report.scans as any
 
-  const impactDot = (impact: string) => {
-    switch (impact) {
-      case 'critical': return 'bg-severity-critical';
-      case 'serious': return 'bg-severity-serious';
-      case 'moderate': return 'bg-severity-moderate';
-      default: return 'bg-severity-minor';
-    }
-  };
+  // Fetch violations for this scan
+  const { data: violations } = await supabase
+    .from('violations')
+    .select('*')
+    .eq('scan_id', report.scan_id)
+    .order('impact', { ascending: false })
 
-  const scoreColor = (score: number) => {
-    if (score >= 75) return 'text-green-400';
-    if (score >= 50) return 'text-yellow-400';
-    return 'text-red-400';
-  };
+  const score = scan?.compliance_score ?? 0
+  const scoreColor = score >= 90 ? '#22D3A0'
+    : score >= 75 ? '#22c55e'
+    : score >= 50 ? '#F59E0B'
+    : '#EF4444'
 
-  const scoreBg = (score: number) => {
-    if (score >= 75) return 'bg-green-500/10 border-green-500/30';
-    if (score >= 50) return 'bg-yellow-500/10 border-yellow-500/30';
-    return 'bg-red-500/10 border-red-500/30';
-  };
+  const impactOrder = { critical: 0, serious: 1, moderate: 2, minor: 3 }
+  const sortedViolations = (violations || []).sort((a, b) => 
+    (impactOrder[a.impact] ?? 4) - (impactOrder[b.impact] ?? 4)
+  )
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 text-accent animate-spin" />
-      </div>
-    );
+  const impactColors = {
+    critical: '#FF3B3B',
+    serious: '#FF7A00', 
+    moderate: '#FFB800',
+    minor: '#64B5F6'
   }
-
-  if (error || !scan) {
-    return (
-      <div className="text-center py-20">
-        <h2 className="text-xl font-semibold mb-2">Report Not Found</h2>
-        <p className="text-text-secondary mb-4">
-          {error || 'This scan report does not exist or you do not have access.'}
-        </p>
-        <Link
-          href="/reports"
-          className="text-accent hover:text-accent-hover"
-        >
-          ← Back to Reports
-        </Link>
-      </div>
-    );
-  }
-
-  const score = scan.compliance_score || 0;
-  const bigSix = scan.big_six || { contrast: 0, alt_text: 0, labels: 0, links: 0, buttons: 0, lang: 0 };
-  const bigSixEntries = [
-    { key: 'Low Contrast', value: bigSix.contrast || 0 },
-    { key: 'Alt Text', value: bigSix.alt_text || 0 },
-    { key: 'Labels', value: bigSix.labels || 0 },
-    { key: 'Links', value: bigSix.links || 0 },
-    { key: 'Buttons', value: bigSix.buttons || 0 },
-    { key: 'Language', value: bigSix.lang || 0 },
-  ];
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="p-8 max-w-5xl">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Link
-            href="/reports"
-            className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary mb-2 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Reports
-          </Link>
-          <h1 className="text-2xl font-bold">Scan Report</h1>
-          <p className="text-text-secondary text-sm mt-1">
-            {scan.url} · {scan.completed_at ? formatDate(scan.completed_at) : 'N/A'}
+      <div className="mb-8">
+        <a href="/dashboard/reports" 
+          className="text-gray-400 hover:text-white text-sm mb-4 inline-block">
+          ← Back to Reports
+        </a>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white break-all">
+              {scan?.url}
+            </h1>
+            <p className="text-gray-400 mt-1">
+              Scanned on {new Date(report.created_at).toLocaleDateString('en-US', {
+                year: 'numeric', month: 'long', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+              })}
+            </p>
+          </div>
+          <div className="flex gap-3 ml-4">
+            <a href={`/api/reports/${params.id}/pdf`}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 
+                text-white px-4 py-2 rounded-lg text-sm transition-colors">
+              Download PDF
+            </a>
+            <a href={`/api/reports/${params.id}/csv`}
+              className="flex items-center gap-2 bg-[#1A1A24] hover:bg-[#2A2A3A] 
+                border border-[#2A2A3A] text-white px-4 py-2 rounded-lg 
+                text-sm transition-colors">
+              Export CSV
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Score + Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-4 
+          col-span-2 md:col-span-1">
+          <p className="text-gray-400 text-sm">Compliance Score</p>
+          <p className="text-4xl font-bold mt-1" style={{ color: scoreColor }}>
+            {score}/100
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Download PDF */}
-          <a
-            href={`/api/reports/${id}/pdf`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            Download PDF
-          </a>
-          {/* Export CSV */}
-          <a
-            href={`/api/reports/${id}/csv`}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-border hover:bg-surface-elevated text-text-primary rounded-lg text-sm font-medium transition-colors"
-          >
-            <FileText className="w-4 h-4" />
-            Export CSV
-          </a>
-          {/* Share */}
-          <button
-            onClick={handleShare}
-            className="inline-flex items-center gap-2 px-3 py-2 border border-border hover:bg-surface-elevated text-text-secondary rounded-lg text-sm transition-colors"
-          >
-            {copied ? (
-              <Check className="w-4 h-4 text-green-400" />
-            ) : (
-              <Share className="w-4 h-4" />
-            )}
-            {copied ? 'Copied!' : 'Share'}
-          </button>
+        <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Total Issues</p>
+          <p className="text-2xl font-bold text-white mt-1">
+            {scan?.total_violations ?? 0}
+          </p>
+        </div>
+        <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Critical</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: '#FF3B3B' }}>
+            {scan?.critical_count ?? 0}
+          </p>
+        </div>
+        <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-4">
+          <p className="text-gray-400 text-sm">Serious</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: '#FF7A00' }}>
+            {scan?.serious_count ?? 0}
+          </p>
         </div>
       </div>
 
-      {/* Score badge */}
-      <div className={`inline-flex items-center gap-3 px-5 py-3 border rounded-xl ${scoreBg(score)}`}>
-        <span className={`text-3xl font-bold ${scoreColor(score)}`}>{score}</span>
-        <div>
-          <span className="text-sm font-medium">/100</span>
-          <p className="text-xs text-text-muted">Compliance Score</p>
-        </div>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: 'Total Violations', value: scan.total_violations || 0, color: 'text-white' },
-          { label: 'Critical', value: scan.critical_count || 0, color: 'text-severity-critical' },
-          { label: 'Serious', value: scan.serious_count || 0, color: 'text-severity-serious' },
-          { label: 'Moderate', value: scan.moderate_count || 0, color: 'text-severity-moderate' },
-          { label: 'Minor', value: scan.minor_count || 0, color: 'text-severity-minor' },
-          { label: 'Pages Scanned', value: scan.pages_scanned || 1, color: 'text-accent' },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="bg-surface border border-border rounded-xl p-4 text-center"
-          >
-            <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-            <p className="text-xs text-text-muted mt-1">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Big Six Section */}
-      <div className="bg-surface border border-border rounded-xl p-6">
-        <h2 className="text-lg font-semibold mb-1">Big Six Violations</h2>
-        <p className="text-text-muted text-xs mb-4">
-          These six issues cause 96% of all WCAG failures.
-        </p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {bigSixEntries.map((item) => (
-            <div
-              key={item.key}
-              className={`p-4 rounded-xl border ${
-                item.value > 0
-                  ? 'border-red-500/20 bg-red-500/5'
-                  : 'border-green-500/20 bg-green-500/5'
-              }`}
-            >
-              <p className="text-xs text-text-muted mb-1">{item.key}</p>
-              <p className={`text-2xl font-bold ${item.value > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {item.value}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Violations list */}
-      <div className="bg-surface border border-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold">
-            Violations
-            {impactFilter !== 'All' && (
-              <span className="text-text-muted text-sm ml-2">
-                ({filteredViolations.length} of {scan.violations?.length || 0})
-              </span>
-            )}
+      {/* Big Six */}
+      {scan?.big_six && (
+        <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            Big Six Violations
           </h2>
-
-          {/* Filter tabs */}
-          <div className="flex gap-1">
-            {(['All', 'critical', 'serious', 'moderate', 'minor'] as ImpactFilter[]).map(
-              (f) => (
-                <button
-                  key={f}
-                  onClick={() => setImpactFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    impactFilter === f
-                      ? 'bg-accent text-white'
-                      : 'text-text-muted hover:text-text-primary hover:bg-surface-elevated'
-                  }`}
-                >
-                  {f.charAt(0).toUpperCase() + f.slice(1)}
-                </button>
-              )
-            )}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {Object.entries(scan.big_six).map(([key, count]: [string, any]) => (
+              <div key={key} className="flex items-center justify-between 
+                bg-[#0A0A0F] rounded-lg p-3">
+                <span className="text-gray-400 text-sm capitalize">
+                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                </span>
+                <span className={`font-bold ${count > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {count}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
+      )}
 
-        {filteredViolations.length === 0 ? (
-          <p className="text-text-muted text-sm py-8 text-center">
-            No violations found {impactFilter !== 'All' ? `with ${impactFilter} impact` : ''}.
-          </p>
+      {/* Violations List */}
+      <div>
+        <h2 className="text-lg font-semibold text-white mb-4">
+          All Violations ({sortedViolations.length})
+        </h2>
+        {sortedViolations.length === 0 ? (
+          <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-8 
+            text-center">
+            <p className="text-green-400 text-lg font-medium">
+              No violations found!
+            </p>
+            <p className="text-gray-400 mt-2">
+              This site passed automated WCAG checks.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
-            {filteredViolations.map((v: any, idx: number) => {
-              const isExpanded = expandedCards.has(idx);
+            {sortedViolations.map((violation) => {
+              const color = impactColors[violation.impact] || '#64B5F6'
               return (
-                <div
-                  key={idx}
-                  className="border border-border rounded-xl overflow-hidden hover:border-accent/30 transition-colors"
-                >
-                  <button
-                    onClick={() => toggleExpand(idx)}
-                    className="w-full text-left p-4 flex items-start gap-4"
-                  >
-                    <span
-                      className={`mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0 ${impactDot(v.impact)}`}
-                    />
+                <div key={violation.id} 
+                  className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-5">
+                  <div className="flex items-start gap-3">
+                    <span className="px-2 py-1 rounded text-xs font-bold uppercase shrink-0"
+                      style={{ 
+                        backgroundColor: color + '20', 
+                        color 
+                      }}>
+                      {violation.impact}
+                    </span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full border ${impactBg(v.impact)}`}
-                        >
-                          {v.impact}
-                        </span>
-                        <span className="text-xs text-text-muted font-mono">
-                          {v.rule_id || v.id}
-                        </span>
-                        {v.wcag_criterion && v.wcag_criterion !== 'N/A' && (
-                          <span className="text-xs text-accent font-mono bg-accent/5 px-1.5 py-0.5 rounded">
-                            WCAG {v.wcag_criterion}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-medium text-text-primary">
-                        {v.rule_description || v.description || v.help}
+                      <p className="text-white font-medium">
+                        {violation.rule_description || violation.description}
                       </p>
-                      {!isExpanded && (
-                        <p className="text-xs text-text-muted mt-1 truncate">
-                          {(v.fix_summary || v.help || '').slice(0, 100)}...
-                        </p>
+                      <p className="text-gray-400 text-sm mt-1">
+                        Rule: {violation.rule_id || violation.id}
+                      </p>
+                      {violation.element_html && (
+                        <pre className="bg-[#0A0A0F] rounded-lg p-3 mt-3 
+                          text-xs text-gray-300 overflow-x-auto">
+                          <code>{violation.element_html}</code>
+                        </pre>
                       )}
-                    </div>
-                    <ChevronDown
-                      className={`w-4 h-4 text-text-muted flex-shrink-0 transition-transform ${
-                        isExpanded ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-
-                  {/* Expanded content */}
-                  {isExpanded && (
-                    <div className="px-4 pb-4 border-t border-border space-y-3 pt-3 ml-8">
-                      {/* Element HTML */}
-                      {v.element_html && (
-                        <div>
-                          <p className="text-xs font-semibold text-text-muted mb-1">
-                            Affected Element
+                      {violation.fix_summary && (
+                        <div className="mt-3 bg-purple-900/20 border 
+                          border-purple-500/20 rounded-lg p-3">
+                          <p className="text-purple-300 text-sm font-medium">
+                            How to fix:
                           </p>
-                          <pre className="text-xs bg-surface-elevated p-3 rounded-lg overflow-x-auto font-mono text-text-secondary max-h-24 overflow-y-auto">
-                            {v.element_html}
-                          </pre>
+                          <p className="text-gray-300 text-sm mt-1">
+                            {violation.fix_summary}
+                          </p>
                         </div>
                       )}
-
-                      {/* How to fix */}
-                      <div>
-                        <p className="text-xs font-semibold text-text-muted mb-1">
-                          How to Fix
-                        </p>
-                        <div className="text-sm text-text-secondary space-y-1">
-                          {(v.fix_detail || v.fix_summary || v.help || '')
-                            .split('\n')
-                            .filter(Boolean)
-                            .map((step: string, si: number) => (
-                              <p key={si} className="flex gap-2">
-                                <span className="text-accent flex-shrink-0">{si + 1}.</span>
-                                <span>{step}</span>
-                              </p>
-                            ))}
-                        </div>
-                      </div>
-
-                      {/* Help URL */}
-                      {(v.help_url || v.helpUrl) && (
-                        <a
-                          href={v.help_url || v.helpUrl}
+                      {(violation.help_url || violation.helpUrl) && (
+                        <a href={violation.help_url || violation.helpUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent-hover transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          View Documentation
+                          className="text-purple-400 hover:text-purple-300 
+                            text-xs mt-2 inline-block">
+                          Learn more →
                         </a>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              );
+              )
             })}
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }

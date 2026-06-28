@@ -9,6 +9,7 @@ const nextConfig = {
     serverComponentsExternalPackages: [
       'puppeteer-core',
     ],
+    optimizePackageImports: ['lucide-react', 'recharts'],
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
