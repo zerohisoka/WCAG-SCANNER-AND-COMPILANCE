@@ -168,7 +168,7 @@ export default async function ReportDetailPage({
         ) : (
           <div className="space-y-3">
             {sortedViolations.map((violation) => {
-              const color = impactColors[violation.impact] || '#64B5F6'
+              const color = impactColors[violation.impact as keyof typeof impactColors] || '#64B5F6'
               return (
                 <div key={violation.id} 
                   className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-5">
