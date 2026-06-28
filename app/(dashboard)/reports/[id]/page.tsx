@@ -7,12 +7,17 @@ import {
   ArrowLeft,
   Loader2,
   FileDown,
-  FileSpreadsheet,
   Share2,
   Check,
   ExternalLink,
-  ChevronUp,
+  AlertTriangle,
+  AlertCircle,
+  Info,
   ChevronDown,
+  ChevronUp,
+  Globe,
+  FileText,
+  BarChart2
 } from 'lucide-react';
 import type { ScanResult } from '@/types/scan';
 import { formatDate } from '@/lib/utils';
@@ -171,7 +176,7 @@ export default function ReportDetailPage() {
             href={`/api/reports/${id}/csv`}
             className="inline-flex items-center gap-2 px-4 py-2 border border-border hover:bg-surface-elevated text-text-primary rounded-lg text-sm font-medium transition-colors"
           >
-            <FileSpreadsheet className="w-4 h-4" />
+            <FileDown className="w-4 h-4" />
             Export CSV
           </a>
           {/* Share */}
