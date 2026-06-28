@@ -53,7 +53,7 @@ export default async function ReportDetailPage({
 
   const impactOrder = { critical: 0, serious: 1, moderate: 2, minor: 3 }
   const sortedViolations = (violations || []).sort((a, b) => 
-    (impactOrder[a.impact] ?? 4) - (impactOrder[b.impact] ?? 4)
+    (impactOrder[a.impact as keyof typeof impactOrder] ?? 4) - (impactOrder[b.impact as keyof typeof impactOrder] ?? 4)
   )
 
   const impactColors = {
