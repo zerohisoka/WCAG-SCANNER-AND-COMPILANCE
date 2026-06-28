@@ -196,46 +196,44 @@ export async function runScan(params: RunScanParams): Promise<ScanOutput> {
           { timeout: 15000 }
         )
 
-        // Run axe with serializable-only options and manually extract data
-        const results = await page.evaluate(async () => {
-          const axeResults = await (window as any).axe.run(
-            document,
-            {
-              runOnly: {
-                type: 'tag',
-                values: ['wcag2a', 'wcag2aa']
-              },
-              resultTypes: ['violations', 'passes'],
-              elementRef: false,
-              selectors: true,
-              ancestry: false,
-              xpath: false
+        // Run axe — do NOT use async/await inside page.evaluate
+        // as it double-resolves the promise and corrupts axe internals
+        const results = await page.evaluate(() => {
+          const axe: any = (window as any).axe
+          return axe.run(document, {
+            runOnly: {
+              type: 'tag',
+              values: ['wcag2a', 'wcag2aa']
+            },
+            resultTypes: ['violations', 'passes'],
+            elementRef: false,
+            selectors: true,
+            ancestry: false,
+            xpath: false
+          }).then((axeResults: any) => {
+            return {
+              violations: axeResults.violations.map((v: any) => ({
+                id: v.id,
+                impact: v.impact,
+                description: v.description,
+                help: v.help,
+                helpUrl: v.helpUrl,
+                tags: v.tags,
+                nodes: v.nodes.map((n: any) => ({
+                  html: n.html,
+                  target: n.target,
+                  failureSummary: n.failureSummary
+                }))
+              })),
+              passes: axeResults.passes.map((p: any) => ({
+                id: p.id,
+                impact: p.impact,
+                description: p.description
+              })),
+              testEngine: axeResults.testEngine,
+              url: axeResults.url
             }
-          )
-
-          // Extract only serializable data inside the browser
-          return {
-            violations: axeResults.violations.map((v: any) => ({
-              id: v.id,
-              impact: v.impact,
-              description: v.description,
-              help: v.help,
-              helpUrl: v.helpUrl,
-              tags: v.tags,
-              nodes: v.nodes.map((n: any) => ({
-                html: n.html,
-                target: n.target,
-                failureSummary: n.failureSummary
-              }))
-            })),
-            passes: axeResults.passes.map((p: any) => ({
-              id: p.id,
-              impact: p.impact,
-              description: p.description
-            })),
-            testEngine: axeResults.testEngine,
-            url: axeResults.url
-          }
+          })
         })
 
         console.log('Scan complete, violations:', results.violations.length)
