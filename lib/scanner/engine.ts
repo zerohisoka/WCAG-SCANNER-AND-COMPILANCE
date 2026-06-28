@@ -151,11 +151,11 @@ export async function runScan(params: RunScanParams): Promise<ScanOutput> {
   try {
     browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: { width: 1280, height: 720 },
       executablePath: await chromium.executablePath(
         'https://github.com/Sparticuz/chromium/releases/download/v127.0.0/chromium-v127.0.0-pack.tar'
       ),
-      headless: chromium.headless,
+      headless: true,
     });
 
     const scanPage = async (pageUrl: string) => {
