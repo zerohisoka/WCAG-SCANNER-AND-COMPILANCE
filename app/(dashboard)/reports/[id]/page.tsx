@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   Loader2,
-  Download,
+  FileDown,
   FileSpreadsheet,
   Share2,
   Check,
@@ -163,7 +163,7 @@ export default function ReportDetailPage() {
             href={`/api/reports/${id}/pdf`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
           >
-            <Download className="w-4 h-4" />
+            <FileDown className="w-4 h-4" />
             Download PDF
           </a>
           {/* Export CSV */}
