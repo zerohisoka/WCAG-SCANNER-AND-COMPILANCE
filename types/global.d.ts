@@ -64,6 +64,16 @@ declare module 'lucide-react' {
   export const ExternalLink: LucideIcon;
   export const Calendar: LucideIcon;
   export const FileDown: LucideIcon;
+  export const Share: LucideIcon;
+  export const Share2: LucideIcon;
+  export const Download: LucideIcon;
+  export const FileSpreadsheet: LucideIcon;
+  export const ChevronUp: LucideIcon;
+  export const Globe: LucideIcon;
+  export const BarChart2: LucideIcon;
+  export const Info: LucideIcon;
+  export const AlertCircle: LucideIcon;
+  export const Shield: LucideIcon;
   export const Loader2: LucideIcon;
   export const LayoutDashboard: LucideIcon;
   export const Monitor: LucideIcon;

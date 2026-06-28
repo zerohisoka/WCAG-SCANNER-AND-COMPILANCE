@@ -7,17 +7,13 @@ import {
   ArrowLeft,
   Loader2,
   FileDown,
-  Share2,
   Check,
   ExternalLink,
   AlertTriangle,
-  AlertCircle,
-  Info,
   ChevronDown,
-  ChevronUp,
-  Globe,
   FileText,
-  BarChart2
+  Calendar,
+  Share,
 } from 'lucide-react';
 import type { ScanResult } from '@/types/scan';
 import { formatDate } from '@/lib/utils';
@@ -176,7 +172,7 @@ export default function ReportDetailPage() {
             href={`/api/reports/${id}/csv`}
             className="inline-flex items-center gap-2 px-4 py-2 border border-border hover:bg-surface-elevated text-text-primary rounded-lg text-sm font-medium transition-colors"
           >
-            <FileDown className="w-4 h-4" />
+            <FileText className="w-4 h-4" />
             Export CSV
           </a>
           {/* Share */}
@@ -187,7 +183,7 @@ export default function ReportDetailPage() {
             {copied ? (
               <Check className="w-4 h-4 text-green-400" />
             ) : (
-              <Share2 className="w-4 h-4" />
+              <Share className="w-4 h-4" />
             )}
             {copied ? 'Copied!' : 'Share'}
           </button>
@@ -325,11 +321,11 @@ export default function ReportDetailPage() {
                         </p>
                       )}
                     </div>
-                    {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-text-muted flex-shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-text-muted flex-shrink-0" />
-                    )}
+                    <ChevronDown
+                      className={`w-4 h-4 text-text-muted flex-shrink-0 transition-transform ${
+                        isExpanded ? 'rotate-180' : ''
+                      }`}
+                    />
                   </button>
 
                   {/* Expanded content */}
