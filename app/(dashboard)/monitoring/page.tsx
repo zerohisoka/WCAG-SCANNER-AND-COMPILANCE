@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Trash2, RefreshCw, AlertTriangle, Power } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 import Link from 'next/link'
 
@@ -259,7 +259,7 @@ export default function MonitoringPage() {
                             className="p-2 text-gray-400 hover:text-white transition-colors"
                             title={site.is_active ? 'Pause monitoring' : 'Resume monitoring'}
                           >
-                            {site.is_active ? <Power className="w-4 h-4 text-green-400" /> : <Power className="w-4 h-4 text-gray-500" />}
+                            {site.is_active ? <span className="w-4 h-4 text-green-400 text-xs font-bold">ON</span> : <span className="w-4 h-4 text-gray-500 text-xs font-bold">OFF</span>}
                           </button>
                           <button
                             onClick={() => removeSite(site.id)}
