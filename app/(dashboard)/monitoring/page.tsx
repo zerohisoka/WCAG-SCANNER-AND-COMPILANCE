@@ -259,7 +259,9 @@ export default function MonitoringPage() {
                             className="p-2 text-gray-400 hover:text-white transition-colors"
                             title={site.is_active ? 'Pause monitoring' : 'Resume monitoring'}
                           >
-                            {site.is_active ? <span className="w-4 h-4 text-green-400 text-xs font-bold">ON</span> : <span className="w-4 h-4 text-gray-500 text-xs font-bold">OFF</span>}
+                            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium cursor-pointer ${site.is_active ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>
+                              {site.is_active ? 'ON' : 'OFF'}
+                            </span>
                           </button>
                           <button
                             onClick={() => removeSite(site.id)}
